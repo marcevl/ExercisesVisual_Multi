@@ -1,0 +1,131 @@
+<br> 
+<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
+
+## Course: Visual Analytics for Policy and Management
+#
+### Multivariate Exercises
+
+#### By Marcela Vázquez Luna
+#
+#
+```{r}
+library(openxlsx)
+library(ggplot2)
+library(psych)
+library(ggrepel)
+library(cluster)
+library(dotwhisker)
+library(broom)
+library(dplyr)
+library(margins)
+
+link="https://github.com/EvansDataScience/data/raw/master/safeCitiesIndexAll.xlsx"
+
+safe=read.xlsx(link)
+```
+
+<span style="color:red"> Exercise:<br> Improve and or complete one descriptive and one inferential plot from this session.
+</span>
+
+## Descriptive Plot
+
+```{r}
+# IN/OUT
+positionsIN=grep("_In_", colnames(safe) )
+positionsOUT=grep("_Out_", colnames(safe) )
+
+#
+safeIN=safe[,c(1,positionsIN)]
+safeOUT=safe[,c(1,positionsOUT)]
+
+### IN
+resultIN=principal(safeIN[,-1],
+                   nfactors = 1,
+                   scores=T,
+                   normalize=T)
+
+safeIN$indexSafeIN=as.vector(factor.scores(safeIN[,-1],resultIN)$scores)
+safeIN$indexSafeIN=scales::rescale(safeIN$indexSafeIN, 
+                                   to = c(1, 100)) 
+safeIN$RankSafeIN=rank(-safeIN$indexSafeIN)
+
+### OUT
+resultOUT=principal(safeOUT[,-1],
+                    nfactors = 1,
+                    scores=T,
+                    normalize=T)
+
+safeOUT$indexSafeOUT=as.vector(factor.scores(safeOUT[,-1],resultOUT)$scores)
+safeOUT$indexSafeOUT=scales::rescale(safeOUT$indexSafeOUT, 
+                                     to = c(1, 100)) 
+safeOUT$RankSafeOUT=rank(-safeOUT$indexSafeOUT)
+
+safeIO=merge(safeIN,safeOUT)
+
+set.seed(123)
+
+# computing clusters
+result <- kmeans(safeIO[,-c(1,25,26,53,54)], # not using composites just created
+                 centers = 3) # how many clusters
+# adding the cluster
+safeIO$cluster=as.factor(result$cluster)
+
+base <- ggplot(safeIO, aes(x= indexSafeIN, y= indexSafeOUT,
+                           label=city,
+                           color = cluster)) # cluster!!
+
+plot1 = base + geom_point(na.rm=TRUE) 
+
+plot2 = plot1 + geom_text_repel(na.rm=TRUE,size=2) 
+
+Plot.title = "Higher Investment in public safety is associated with 
+more safety and viceversa"
+
+plot3 = plot2 + labs(title = Plot.title,
+                     x = "Safety Investment Index",
+                     y = "Safety Result Index",
+                     caption = "Source: NEC 2017 Safe Cities Index",
+                     color = "Cities with similar levels of investment")
+                     
+
+plot4 = plot3 + theme(panel.background = element_rect(fill = "white", color = "grey50"),
+                      plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+                      plot.caption = element_text(hjust = 1),
+                      legend.title = element_text(size = 9),
+                      legend.position = "bottom", legend.box = "horizontal")
+
+plot4
+```
+
+## Inferential Plot
+
+```{r}
+link2="https://github.com/EvansDataScience/data/raw/master/safeCitiesIndex.xlsx"
+
+safe2=read.xlsx(link2)
+
+model1=lm(PERSONAL~HEALTH+INFRASTRUCTURE,data=safe2[,-1])
+
+model1_t = tidy(model1) %>%   # we save the result as a tidy object and...
+    mutate(model = "Model 1") # we add a column 'model' with values 'Model 1'
+
+model2=lm(PERSONAL~.,data=safe2[,-1]) # ~. means: all the remaining variables
+
+model2_t <- tidy(model2) %>% mutate(model = "Model 2")
+
+allModels=rbind(model1_t, model2_t)
+
+Plot.title2 = "Health, unlike Infrastruture and Digial Safety, is not associated 
+to an increase in personal safety, all else equal"
+
+dwplot(allModels) + 
+    geom_vline(xintercept = 0, 
+               colour = "grey60", 
+               linetype = 2) +
+    scale_colour_grey(start = .1, end = .7) +
+    theme(legend.title=element_blank(),  plot.title = element_text(size = 14, hjust = 0.5, face = "bold")) + 
+    labs(title = Plot.title2, caption = "Source: NEC 2017 Safe Cities Index")
+
+```
+
+
